@@ -37,8 +37,8 @@ function App() {
             {/* Desktop-style menu bar pinned at the very top */}
             <TopMenuBar />
 
-            {/* Add top padding to prevent overlap with fixed menu bar */}
-            <div className="flex h-screen w-screen overflow-hidden pt-8">
+            {/* Existing layout, unchanged */}
+            <div className="flex h-screen w-screen overflow-hidden">
               <NodeSidebar />
               <Stage setOffset={setOffset}>
                 <Connections offset={offset}>

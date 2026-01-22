@@ -128,8 +128,9 @@ const Connections: React.FC<ConnectionsProps> = ({ offset, children }) => {
           style={{
             width: '1000vw',
             height: '1000vh',
-            position: 'absolute',
-            inset: 0,
+            position: 'fixed',
+            top: '32px',
+            left: 0,
             pointerEvents: 'none',
             zIndex: 997,
           }}
