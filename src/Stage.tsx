@@ -72,13 +72,13 @@ const Stage: React.FC<PropsWithChildren<{ setOffset }>> = ({ setOffset, children
 
         const rect = ref.current.getBoundingClientRect();
 
-        // Mouse position relative to the div (screen space)
+        // Mouse position relative to the div (screen space), accounting for menu bar offset
         const mouseX = e.clientX;
-        const mouseY = e.clientY;
+        const mouseY = e.clientY - 32; // Account for fixed 32px menu bar
 
-        // Convert screen coords → local coords (before zoom)
-        const localX = (mouseX - currentX);
-        const localY = (mouseY - currentY);
+        // Convert screen coords → canvas coords (before zoom)
+        const localX = mouseX - currentX;
+        const localY = mouseY - currentY;
 
         const dx = localX * (newScale / oldScale - 1);
         const dy = localY * (newScale / oldScale - 1);
