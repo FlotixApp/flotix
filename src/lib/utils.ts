@@ -56,8 +56,8 @@ export function transformPoint(
   offsetY: number
 ): { x: number; y: number } {
   return {
-    x: x * scale + offsetX,
-    y: y * scale + offsetY,
+    x: (x -offsetX) / scale,
+    y: (y - offsetY) / scale,
   };
 }
 
