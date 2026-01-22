@@ -43,8 +43,8 @@ export function generateSshapedPath(
 
   // --- optional near-vertical compensation ---
   // if nodes are stacked vertically, bend less
-     const midx = (x1 + x2) / 2;
-    return `M ${x1},${y1} C ${midx},${y1} ${midx},${y2} ${x2},${y2}`;
+  const midx = (x1 + x2) / 2;
+  return `M ${x1},${y1} C ${midx},${y1} ${midx},${y2} ${x2},${y2}`;
 }
 
 
@@ -56,8 +56,8 @@ export function transformPoint(
   offsetY: number
 ): { x: number; y: number } {
   return {
-    x: (x -offsetX) / scale,
-    y: (y - offsetY) / scale,
+    x: (x - offsetX) / scale,
+    y: y * scale + offsetY,
   };
 }
 
