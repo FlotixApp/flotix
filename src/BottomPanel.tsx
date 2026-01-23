@@ -5,6 +5,28 @@ import { ArrowDownIcon, ArrowUpIcon, ChevronDown, ChevronDownIcon, CircleArrowUp
 import { useNodeEngine } from "./NodeEngineContext";
 import * as dfd from "danfojs";
 import { DataFrameViewer } from "./components/ui/DataFrameViewer";
+import { MapContainer, TileLayer, Marker, Tooltip as LeafletTooltip } from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+
+import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
+
+type MapPoint = { lat: number; lng: number; label: string };
+type MapPayload = { points: MapPoint[]; center: [number, number]; zoom: number };
+
+const defaultMarkerIcon = L.icon({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  tooltipAnchor: [16, -28],
+  shadowSize: [41, 41],
+});
+
 
 interface BottomPanelProps {
   sidebarWidth: number;
@@ -24,6 +46,11 @@ export function BottomPanel({ sidebarWidth }: BottomPanelProps) {
     selectedNode?.outputType === "dataframe"
       ? (selectedNode.outputValue as dfd.DataFrame)
       : null
+
+  const mapPayload =
+    selectedNode?.outputType === "map"
+      ? (selectedNode.outputValue as MapPayload)
+      : null;
 
   const startDrag = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -56,8 +83,8 @@ export function BottomPanel({ sidebarWidth }: BottomPanelProps) {
   }, [isDragging]);
 
   useEffect(() => {
-    if (df && isCollapsed) setIsCollapsed(false)
-  }, [df])
+    if ((df || mapPayload) && isCollapsed) setIsCollapsed(false);
+  }, [df, mapPayload]);
 
   return (
     <div
@@ -96,18 +123,49 @@ export function BottomPanel({ sidebarWidth }: BottomPanelProps) {
 
 
       {/* Panel Content */}
+      {/* Panel Content */}
       {!isCollapsed && (
         <div className="p-2 h-[calc(100%-32px)] overflow-hidden">
           {df ? (
             <div className="h-full w-full draggable-item">
               <DataFrameViewer df={df} />
             </div>
+          ) : mapPayload ? (
+            <div className="h-full w-full">
+              <div className="nodrag w-full h-full overflow-hidden rounded">
+                <MapContainer
+                  center={mapPayload.center}
+                  zoom={mapPayload.zoom}
+                  style={{ width: "100%", height: "100%" }}
+                  scrollWheelZoom={true}
+                  dragging={true}
+                >
+                  <TileLayer
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                  />
+
+                  {mapPayload.points.map((pt, i) => (
+                    <Marker
+                      key={`${pt.lat}-${pt.lng}-${i}`}
+                      position={[pt.lat, pt.lng]}
+                      icon={defaultMarkerIcon}
+                    >
+                      {pt.label ? (
+                        <LeafletTooltip direction="top" offset={[0, -10]} opacity={0.95} sticky>
+                          {pt.label}
+                        </LeafletTooltip>
+                      ) : null}
+                    </Marker>
+                  ))}
+                </MapContainer>
+              </div>
+            </div>
           ) : (
-            <div className="text-gray-400 text-sm italic">No DataFrame selected</div>
+            <div className="text-gray-400 text-sm italic">No DataFrame or Map selected</div>
           )}
         </div>
-      )
-      }
+      )}
     </div >
   );
 }
