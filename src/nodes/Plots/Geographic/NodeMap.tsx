@@ -1,6 +1,5 @@
-// NodeMapLeaflet.tsx
 import React, { useEffect, useMemo } from "react";
-import { createNodeComponent } from "../createNodeComponent";
+import { createNodeComponent } from "../../createNodeComponent";
 import {
   Select,
   SelectContent,
@@ -11,17 +10,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-// ✅ Leaflet
 import { MapContainer, TileLayer, Marker, Tooltip as LeafletTooltip } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-// ✅ Marker assets (bundler-safe)
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
-// ✅ Explicit icon (most reliable fix for the "?" marker)
+type MapPoint = { lat: number; lng: number; label: string };
+export type MapPayload = {
+  points: MapPoint[];
+  center: [number, number];
+  zoom: number;
+};
+
 const defaultMarkerIcon = L.icon({
   iconRetinaUrl: markerIcon2x,
   iconUrl: markerIcon,
@@ -33,12 +36,13 @@ const defaultMarkerIcon = L.icon({
   shadowSize: [41, 41],
 });
 
-const NodeMap = createNodeComponent({
+const NodeMapLeaflet = createNodeComponent({
   label: "Map (Leaflet)",
   description: "Plot latitude/longitude points from a dataframe on a Leaflet map with hover tooltips.",
   width: 420,
   initialInputs: ["dataframe"],
-  outputType: "plot",
+  // ✅ change outputType so BottomPanel can detect it
+  outputType: "map",
   initialState: {
     latCol: null as string | null,
     lngCol: null as string | null,
@@ -46,9 +50,38 @@ const NodeMap = createNodeComponent({
     data: null as any,
   },
 
-  computeOutput: (inputs) => {
-    const df = inputs[0]?.value;
-    return df && df.shape ? df : null;
+  // ✅ OUTPUT = map payload (so the bottom panel can render it)
+  computeOutput: (inputs, state): MapPayload | null => {
+    const df = inputs[0]?.value ?? null;
+    if (!df || !df.shape) return null;
+    if (!state.latCol || !state.lngCol) return null;
+
+    const columns: string[] = df.columns ?? [];
+    const rows: any[] = df.values ?? [];
+
+    const latIdx = columns.indexOf(state.latCol);
+    const lngIdx = columns.indexOf(state.lngCol);
+    const labelIdx = state.labelCol ? columns.indexOf(state.labelCol) : -1;
+
+    if (latIdx === -1 || lngIdx === -1) return null;
+
+    const points: MapPoint[] = rows
+      .map((row: any) => {
+        const lat = Number.parseFloat(row[latIdx]);
+        const lng = Number.parseFloat(row[lngIdx]);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+        const label =
+          labelIdx !== -1 && row[labelIdx] != null ? String(row[labelIdx]) : "";
+        return { lat, lng, label };
+      })
+      .filter(Boolean);
+
+    const center: [number, number] =
+      points.length > 0 ? [points[0].lat, points[0].lng] : [0, 0];
+
+    const zoom = points.length > 0 ? 4 : 2;
+
+    return { points, center, zoom };
   },
 
   renderInputControls: () => null,
@@ -59,7 +92,6 @@ const NodeMap = createNodeComponent({
     const columns = useMemo(() => (df ? df.columns : []), [df]);
     const rows = useMemo(() => (df ? df.values : []), [df]);
 
-    // Keep df in state if you want it later
     useEffect(() => {
       if (df) setState((prev) => ({ ...prev, data: df }));
     }, [df, setState]);
@@ -91,7 +123,6 @@ const NodeMap = createNodeComponent({
       const latIdx = columns.indexOf(state.latCol);
       const lngIdx = columns.indexOf(state.lngCol);
       const labelIdx = state.labelCol ? columns.indexOf(state.labelCol) : -1;
-
       if (latIdx === -1 || lngIdx === -1) return [];
 
       return rows
@@ -102,13 +133,11 @@ const NodeMap = createNodeComponent({
 
           const label =
             labelIdx !== -1 && row[labelIdx] != null ? String(row[labelIdx]) : "";
-
           return { lat, lng, label };
         })
-        .filter(Boolean) as Array<{ lat: number; lng: number; label: string }>;
+        .filter(Boolean) as MapPoint[];
     }, [rows, columns, state.latCol, state.lngCol, state.labelCol]);
 
-    // Center on first point or fallback
     const center = useMemo<[number, number]>(() => {
       if (points.length > 0) return [points[0].lat, points[0].lng];
       return [0, 0];
@@ -124,7 +153,7 @@ const NodeMap = createNodeComponent({
           {makeSelect("labelCol", "Label Column")}
         </div>
 
-        {/* ✅ IMPORTANT: prevents your node Draggable from stealing map drag */}
+        {/* ✅ prevents node drag stealing map drag */}
         <div
           className="nodrag"
           style={{
@@ -168,4 +197,4 @@ const NodeMap = createNodeComponent({
   hideOutputPort: true,
 });
 
-export default NodeMap;
+export default NodeMapLeaflet;
