@@ -33,6 +33,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "danfojs": "^1.2.0",
+    "leaflet": "^1.9.4",
     "lucide-react": "^0.525.0",
     "plotly.js-dist": "^3.0.1",
     "plotly.js-dist-min": "^3.0.1",
@@ -42,6 +43,7 @@
     "react-dnd-html5-backend": "^16.0.1",
     "react-dom": "^19.1.0",
     "react-draggable": "^4.4.6",
+    "react-leaflet": "^5.0.0",
     "react-window": "^1.8.11",
     "tailwind-merge": "^3.3.0",
     "vite-plugin-svgr": "^4.5.0"
@@ -49,6 +51,7 @@
   "devDependencies": {
     "@eslint/js": "^9.25.0",
     "@tailwindcss/vite": "^4.1.7",
+    "@types/leaflet": "^1.9.21",
     "@types/node": "^22.15.23",
     "@types/plotly.js": "^3.0.0",
     "@types/react": "^19.1.2",
