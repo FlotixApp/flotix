@@ -14,7 +14,11 @@ import { nodeCatalog } from "./nodeRegistration";
 import { cn, getWindowCenter } from "@/lib/utils";
 import { useDrag } from "react-dnd";
 import { ChevronDown, ChevronRight, ChartNetwork } from "lucide-react";
-import { useNodeEngine } from "./NodeEngineContext"; 
+import { useNodeEngine } from "./NodeEngineContext";
+
+const COLLAPSED_BY_DEFAULT = new Set<string>([
+    "Data/Open Source Datasets",
+]);
 
 interface TreeNode {
     name: string;
@@ -52,37 +56,59 @@ function buildTree(catalog = nodeCatalog): TreeNode[] {
     return Object.values(root);
 }
 
-const TreeNodeItem: React.FC<{ node: TreeNode; depth?: number }> = ({ node, depth = 0 }) => {
-    const [expanded, setExpanded] = useState(true);
+const TreeNodeItem: React.FC<{ node: TreeNode; depth?: number; path?: string }> = ({
+    node,
+    depth = 0,
+    path = "",
+}) => {
     const isBranch = !!node.children && node.children.length > 0;
+    const fullPath = path ? `${path}/${node.name}` : node.name;
+
+    const [expanded, setExpanded] = useState(() => {
+        if (!isBranch) return true;
+        return !COLLAPSED_BY_DEFAULT.has(fullPath);
+    });
+
     const { createNode } = useNodeEngine();
 
-    const [{ isDragging }, dragRef] = useDrag(() => ({
-        type: "NODE",
-        item: { type: node.node?.type },
-        canDrag: !!node.node,
-        collect: (monitor) => ({
-            isDragging: !!monitor.isDragging(),
+    const [{ isDragging }, dragRef] = useDrag(
+        () => ({
+            type: "NODE",
+            item: { type: node.node?.type },
+            canDrag: !!node.node,
+            collect: (monitor) => ({ isDragging: monitor.isDragging() }),
         }),
-    }), [node]);
+        [node]
+    );
 
     return (
         <div className={cn("ml-1", depth > 0 && "border-l border-zinc-700 pl-1")}>
             <div className="flex items-center gap-1 cursor-pointer">
                 {isBranch ? (
-                    <button className="!bg-zinc-900 !border-none !pl-2" onClick={() => setExpanded(!expanded)}>
+                    <button
+                        className="!bg-zinc-900 !border-none !pl-2"
+                        onClick={() => setExpanded((v) => !v)}
+                        type="button"
+                    >
                         {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                     </button>
                 ) : (
-                    <span className="w-[16px]" />
+                    <span className="w-[0px]" />
                 )}
+
                 {node.node ? (
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <div
-                                ref={(el) => { if (el) dragRef(el); }}
-                                className={cn("text-sm text-white p-1 hover:bg-zinc-700 rounded", isDragging && "opacity-50")}
-                                onClick={() => node.node && createNode(node.node?.type, getWindowCenter())}
+                                ref={(el) => {
+                                    if (el) dragRef(el);
+                                }}
+                                className={cn(
+                                    "text-sm text-white p-1 hover:bg-zinc-700 rounded",
+                                    "whitespace-nowrap",
+                                    isDragging && "opacity-50"
+                                )}
+                                onClick={() => createNode(node.node!.type, getWindowCenter())}
                             >
                                 {node.name}
                             </div>
@@ -93,16 +119,18 @@ const TreeNodeItem: React.FC<{ node: TreeNode; depth?: number }> = ({ node, dept
                     <span className="text-sm text-zinc-300 font-semibold">{node.name}</span>
                 )}
             </div>
+
             {expanded && isBranch && (
                 <div className="pl-3">
                     {node.children!.map((child, i) => (
-                        <TreeNodeItem key={i} node={child} depth={depth + 1} />
+                        <TreeNodeItem key={i} node={child} depth={depth + 1} path={fullPath} />
                     ))}
                 </div>
             )}
         </div>
     );
 };
+
 
 const NodeSidebar: React.FC = () => {
     const [search, setSearch] = useState("");
@@ -120,37 +148,37 @@ const NodeSidebar: React.FC = () => {
                 <SidebarTrigger className="!text-white !bg-zinc-900 hover:!bg-zinc-700 !border-none" onClick={() => setOpen(v => !v)}>Toggle</SidebarTrigger>
             </div>
         )
-    } 
+    }
     return (
-            <div data-sidebar className="flex-none !mt-7 !p-2 !pt-8 !border-none !bg-zinc-900 !text-white !z-999 !fixed h-full">
-        <Sidebar side="left" variant="sidebar" collapsible="offcanvas" className="bg-zinc-900 text-white h-full !border-r-zinc-700 !absolute !z-999 !top-0">
-            <SidebarHeader className="p-3 border-b !border-none bg-zinc-900">
-                <div className="flex items-center">
-                    <div className="flex-none">
-                        <ChartNetwork />
+        <div data-sidebar className="flex-none !mt-7 !p-2 !pt-8 !border-none !bg-zinc-900 !text-white !z-999 !fixed h-full">
+            <Sidebar side="left" variant="sidebar" collapsible="offcanvas" className="bg-zinc-900 text-white h-full !border-r-zinc-700 !absolute !z-999 !top-0">
+                <SidebarHeader className="p-3 border-b !border-none bg-zinc-900">
+                    <div className="flex items-center">
+                        <div className="flex-none">
+                            <ChartNetwork />
+                        </div>
+                        <div className="flex-none px-2">
+                            Flotix
+                        </div>
+                        <div className="flex-grow text-end !p-2 !border-none !text-white !hover:text-white">
+                            <SidebarTrigger className="!text-white !bg-zinc-900 hover:!bg-zinc-700 !border-none" onClick={() => setOpen(v => !v)}>Toggle</SidebarTrigger>
+                        </div>
                     </div>
-                    <div className="flex-none px-2">
-                        Flotix
-                    </div>
-                    <div className="flex-grow text-end !p-2 !border-none !text-white !hover:text-white">
-                        <SidebarTrigger className="!text-white !bg-zinc-900 hover:!bg-zinc-700 !border-none" onClick={() => setOpen(v => !v)}>Toggle</SidebarTrigger>
-                    </div>
-                </div>
-                <div>
+                    <div>
                         <Input
                             placeholder="Search nodes..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             className="bg-zinc-800 text-white p-2"
                         />
-                </div>
-            </SidebarHeader>
-            <SidebarContent className="overflow-y-auto px-2 bg-zinc-900">
-                {tree.map((node, i) => (
-                    <TreeNodeItem key={i} node={node} />
-                ))}
-            </SidebarContent>
-        </Sidebar>
+                    </div>
+                </SidebarHeader>
+                <SidebarContent className="overflow-y-auto px-2 bg-zinc-900">
+                    {tree.map((node, i) => (
+                        <TreeNodeItem key={i} node={node} path="" />
+                    ))}
+                </SidebarContent>
+            </Sidebar>
         </div>
     );
 };
