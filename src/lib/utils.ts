@@ -159,3 +159,197 @@ export function toNumericMatrix(df: dfd.DataFrame, cols: string[]): number[][] {
     })
   );
 }
+
+// - Treats "2020" (string) and 2020 (number) as a YEAR, not "2020 seconds after epoch".
+// - Handles common EU formats like "31.12.2024", "31/12/2024", and "31-12-2024".
+// - Handles partial dates like "2024-07" (year-month) -> first day of month.
+// - Falls back to Date.parse for ISO / RFC formats, with a conservative final fallback.
+
+export function parseTimeToMs(raw: any): number {
+  if (raw == null) return NaN;
+
+  // ---------------------------------------------------------------------------
+  // Date instance
+  // ---------------------------------------------------------------------------
+  if (raw instanceof Date) {
+    const t = raw.getTime();
+    return Number.isFinite(t) ? t : NaN;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Numbers (avoid misreading a YEAR as unix seconds)
+  // ---------------------------------------------------------------------------
+  if (typeof raw === "number") {
+    if (!Number.isFinite(raw)) return NaN;
+
+    // If it looks like a year, interpret as Jan 1st of that year (UTC).
+    // (You can switch to local time by removing Date.UTC.)
+    if (Number.isInteger(raw) && raw >= 1000 && raw <= 3000) {
+      return Date.UTC(raw, 0, 1);
+    }
+
+    // Heuristics:
+    // - >= 1e12: almost certainly ms epoch
+    // - >= 1e9: plausibly seconds epoch (current seconds ~ 1.7e9)
+    if (raw >= 1e12) return raw;
+    if (raw >= 1e9) return raw * 1000;
+
+    // Otherwise: ambiguous numeric. Treat as seconds to preserve previous behavior,
+    // but at least years are no longer misparsed.
+    return raw * 1000;
+  }
+
+  // BigInt epoch (rare, but safe)
+  if (typeof raw === "bigint") {
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return NaN;
+    if (n >= 1e12) return n;
+    if (n >= 1e9) return n * 1000;
+    return n * 1000;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Strings
+  // ---------------------------------------------------------------------------
+  const s0 = String(raw).trim();
+  if (!s0) return NaN;
+
+  // Normalize whitespace
+  const s = s0.replace(/\s+/g, " ");
+
+  // 1) Year only: "2020"
+  {
+    const m = s.match(/^(\d{4})$/);
+    if (m) {
+      const y = Number(m[1]);
+      if (y >= 1000 && y <= 3000) return Date.UTC(y, 0, 1);
+    }
+  }
+
+  // 2) Year-month: "2020-07" or "2020/07" or "2020.07"
+  {
+    const m = s.match(/^(\d{4})[-\/.](\d{1,2})$/);
+    if (m) {
+      const y = Number(m[1]);
+      const mo = Number(m[2]);
+      if (y >= 1000 && y <= 3000 && mo >= 1 && mo <= 12) return Date.UTC(y, mo - 1, 1);
+    }
+  }
+
+  // 3) ISO-ish date/time: try native parser first for robust timezone handling.
+  //    Works well for:
+  //    - "2020-01-01"
+  //    - "2020-01-01T12:30:00Z"
+  //    - "2020-01-01 12:30:00"
+  //    - "Tue, 01 Jan 2020 00:00:00 GMT"
+  {
+    const t = Date.parse(s);
+    if (Number.isFinite(t)) return t;
+  }
+
+  // 4) Dotted / slashed / dashed day-first formats common in EU:
+  //    "31.12.2024", "31/12/2024", "31-12-2024"
+  //    Also supports optional time "31.12.2024 23:59:59"
+  {
+    const m = s.match(
+      /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})(?:[ T](\d{1,2})(?::(\d{1,2})(?::(\d{1,2})(?:\.(\d{1,3}))?)?)?)?$/
+    );
+    if (m) {
+      const d = Number(m[1]);
+      const mo = Number(m[2]);
+      const y = Number(m[3]);
+
+      const hh = m[4] != null ? Number(m[4]) : 0;
+      const mm = m[5] != null ? Number(m[5]) : 0;
+      const ss = m[6] != null ? Number(m[6]) : 0;
+      const ms = m[7] != null ? Number(m[7].padEnd(3, "0")) : 0;
+
+      if (
+        y >= 1000 &&
+        y <= 3000 &&
+        mo >= 1 &&
+        mo <= 12 &&
+        d >= 1 &&
+        d <= 31 &&
+        hh >= 0 &&
+        hh <= 23 &&
+        mm >= 0 &&
+        mm <= 59 &&
+        ss >= 0 &&
+        ss <= 59 &&
+        ms >= 0 &&
+        ms <= 999
+      ) {
+        // Use UTC for deterministic plotting; switch to `new Date(y, mo-1, d, ...)`
+        // if you want local-time interpretation.
+        return Date.UTC(y, mo - 1, d, hh, mm, ss, ms);
+      }
+    }
+  }
+
+  // 5) Ambiguous "MM/DD/YYYY" vs "DD/MM/YYYY" with optional time:
+  //    Heuristic: if first part > 12 -> day-first; else if second part > 12 -> month-first;
+  //    else default day-first (EU-friendly).
+  {
+    const m = s.match(
+      /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[ T](\d{1,2})(?::(\d{1,2})(?::(\d{1,2})(?:\.(\d{1,3}))?)?)?)?$/
+    );
+    if (m) {
+      const a = Number(m[1]);
+      const b = Number(m[2]);
+      const y = Number(m[3]);
+
+      const hh = m[4] != null ? Number(m[4]) : 0;
+      const mm = m[5] != null ? Number(m[5]) : 0;
+      const ss = m[6] != null ? Number(m[6]) : 0;
+      const ms = m[7] != null ? Number(m[7].padEnd(3, "0")) : 0;
+
+      let d = a;
+      let mo = b;
+
+      if (a <= 12 && b <= 12) {
+        // default day-first (EU)
+        d = a;
+        mo = b;
+      } else if (a > 12 && b <= 12) {
+        // must be day/month
+        d = a;
+        mo = b;
+      } else if (b > 12 && a <= 12) {
+        // must be month/day
+        d = b;
+        mo = a;
+      }
+
+      if (
+        y >= 1000 &&
+        y <= 3000 &&
+        mo >= 1 &&
+        mo <= 12 &&
+        d >= 1 &&
+        d <= 31 &&
+        hh >= 0 &&
+        hh <= 23 &&
+        mm >= 0 &&
+        mm <= 59 &&
+        ss >= 0 &&
+        ss <= 59 &&
+        ms >= 0 &&
+        ms <= 999
+      ) {
+        return Date.UTC(y, mo - 1, d, hh, mm, ss, ms);
+      }
+    }
+  }
+
+  // Final conservative fallback: extract a 4-digit year anywhere ("FY2020", "2020年")
+  {
+    const m = s.match(/(?:^|[^\d])(\d{4})(?:[^\d]|$)/);
+    if (m) {
+      const y = Number(m[1]);
+      if (y >= 1000 && y <= 3000) return Date.UTC(y, 0, 1);
+    }
+  }
+
+  return NaN;
+}

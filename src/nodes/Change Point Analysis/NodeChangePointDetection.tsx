@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { createNodeComponent } from "../createNodeComponent";
+import { parseTimeToMs } from "@/lib/utils";
 
 export type PlotPayload = {
   data: Partial<Data>[];
@@ -102,13 +103,6 @@ function std(a: number[]) {
     s += d * d;
   }
   return Math.sqrt(s / (a.length - 1));
-}
-
-function parseTimeToMs(raw: any): number {
-  if (raw instanceof Date) return raw.getTime();
-  if (typeof raw === "number") return raw > 1e12 ? raw : raw * 1000;
-  const t = Date.parse(String(raw));
-  return Number.isFinite(t) ? t : NaN;
 }
 
 function scoreRollingMeanDiff(values: number[], W: number): number[] {
